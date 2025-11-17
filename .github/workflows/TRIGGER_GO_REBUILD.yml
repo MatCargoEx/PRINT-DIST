@@ -1,0 +1,148 @@
+name: Trigger Go Service Rebuild on LabelDesigner Update
+run-name: Sync Go Service after C# update by ${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Only trigger on C# LabelDesigner updates (emb/ directory)
+      # This prevents infinite loops when Go updates happen (dist/ directory)
+      - 'emb/LabelDesigner.exe'
+      - 'emb/built-info.json'
+      - 'emb/LabelDesigner.exe.config'
+
+env:
+  REPO_OWNER: MatCargoEx
+  GO_SERVICE_REPO: PRINT-SERIVCE-GO
+
+jobs:
+  check-trigger-source:
+    name: Verify Trigger Source
+    runs-on: ubuntu-latest
+    outputs:
+      should_trigger: ${{ steps.check.outputs.result }}
+      labeldesigner_version: ${{ steps.version.outputs.version }}
+      labeldesigner_commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - name: Check if this is a LabelDesigner update
+        id: check
+        run: |
+          echo "=========================================="
+          echo "CHECKING TRIGGER SOURCE"
+          echo "=========================================="
+          echo "Commit message: ${{ github.event.head_commit.message }}"
+          echo "Modified files in emb/ directory detected"
+          echo ""
+
+          # Verify this is NOT a cargoex-service update (double safety)
+          if echo "${{ github.event.head_commit.message }}" | grep -qi "cargoex-service.exe"; then
+            echo "result=false" >> $GITHUB_OUTPUT
+            echo "❌ Skipping trigger: This is a Go service update"
+            echo "   (cargoex-service.exe detected in commit message)"
+          else
+            echo "result=true" >> $GITHUB_OUTPUT
+            echo "✅ Proceeding: This is a LabelDesigner update"
+          fi
+
+      - name: Extract LabelDesigner version from built-info.json
+        id: version
+        if: steps.check.outputs.result == 'true'
+        run: |
+          echo "Fetching built-info.json from PRINT-DIST/emb/..."
+
+          # Download built-info.json
+          curl -s https://raw.githubusercontent.com/${{ env.REPO_OWNER }}/PRINT-DIST/main/emb/built-info.json > built-info.json
+
+          if [ ! -f built-info.json ]; then
+            echo "ERROR: Failed to download built-info.json"
+            exit 1
+          fi
+
+          # Extract version and commit
+          VERSION=$(jq -r '.version' built-info.json)
+          COMMIT=$(jq -r '.commit' built-info.json)
+          BUILT_AT=$(jq -r '."built-at"' built-info.json)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "LabelDesigner Information:"
+          echo "  Version: $VERSION"
+          echo "  Commit: $COMMIT"
+          echo "  Built at: $BUILT_AT"
+
+  trigger-go-rebuild:
+    name: Trigger Go Service Rebuild
+    needs: check-trigger-source
+    if: needs.check-trigger-source.outputs.should_trigger == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger PRINT-SERVICE-GO rebuild
+        run: |
+          echo "=========================================="
+          echo "TRIGGERING GO SERVICE REBUILD"
+          echo "=========================================="
+          echo "Reason: LabelDesigner.exe updated to v${{ needs.check-trigger-source.outputs.labeldesigner_version }}"
+          echo "Target repository: ${{ env.REPO_OWNER }}/${{ env.GO_SERVICE_REPO }}"
+          echo ""
+
+          # Prepare payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "event_type": "labeldesigner-updated",
+            "client_payload": {
+              "labeldesigner_version": "${{ needs.check-trigger-source.outputs.labeldesigner_version }}",
+              "labeldesigner_commit": "${{ needs.check-trigger-source.outputs.labeldesigner_commit }}",
+              "trigger_source": "PRINT-DIST",
+              "triggered_at": "${{ github.event.head_commit.timestamp }}",
+              "triggered_by": "${{ github.actor }}"
+            }
+          }
+          EOF
+          )
+
+          echo "Sending repository_dispatch to ${{ env.GO_SERVICE_REPO }}..."
+          echo "Payload:"
+          echo "$PAYLOAD" | jq .
+          echo ""
+
+          # Send dispatch
+          HTTP_STATUS=$(curl -X POST \
+            -w "%{http_code}" \
+            -o /tmp/response.txt \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ env.REPO_OWNER }}/${{ env.GO_SERVICE_REPO }}/dispatches \
+            -d "$PAYLOAD")
+
+          if [ "$HTTP_STATUS" -eq 204 ]; then
+            echo "✅ Go service rebuild triggered successfully!"
+            echo "   Status: $HTTP_STATUS (No Content - Success)"
+            echo ""
+            echo "Next steps:"
+            echo "  1. PRINT-SERVICE-GO workflow will start automatically"
+            echo "  2. It will fetch the updated LabelDesigner.exe from PRINT-DIST/emb/"
+            echo "  3. It will rebuild cargoex-service.exe with the new embedded version"
+            echo "  4. The new binary will be signed and pushed to PRINT-DIST/dist/"
+            echo ""
+            echo "Monitor the workflow at:"
+            echo "  https://github.com/${{ env.REPO_OWNER }}/${{ env.GO_SERVICE_REPO }}/actions"
+          else
+            echo "❌ Failed to trigger Go service rebuild"
+            echo "   HTTP Status: $HTTP_STATUS"
+            echo "   Response:"
+            cat /tmp/response.txt
+            exit 1
+          fi
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "TRIGGER COMPLETED SUCCESSFULLY"
+          echo "=========================================="
+          echo "LabelDesigner v${{ needs.check-trigger-source.outputs.labeldesigner_version }} will be embedded in the next Go build"
+          echo ""
