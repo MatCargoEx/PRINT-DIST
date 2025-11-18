@@ -129,5 +129,15 @@ jobs:
           VERSION=$(jq -r '.version' build/built-info.json)
           COMMIT=$(jq -r '.commit' build/built-info.json)
 
-          # Create commit message
-          git commit -m "Update build/ with LabelDesigner - Version $VERSION
+          # Create commit message using HEREDOC
+          git commit -m "$(cat <<EOF
+Update build/ with LabelDesigner - Version $VERSION
+
+Automatic update from PRINT-DIST/emb/ distribution.
+
+- LabelDesigner Version: $VERSION
+- LabelDesigner Commit: $COMMIT
+- Source: PRINT-DIST/emb/
+- Files: LabelDesigner.exe, LabelDesigner.exe.config, built-info.json
+EOF
+)"

@@ -1,0 +1,130 @@
+name: Upload CargoEx Service to Google Cloud Storage
+run-name: Upload signed binary to GCS by ${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Trigger when signed cargoex-service.exe is updated in dist/
+      - 'dist/*.exe'
+      - 'dist/cargoex-service.exe'
+
+jobs:
+  upload-to-gcs:
+    name: Upload to Google Cloud Storage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version information
+        id: version
+        run: |
+          echo "=========================================="
+          echo "EXTRACTING VERSION INFORMATION"
+          echo "=========================================="
+
+          if [ -f dist/built-info.json ]; then
+            VERSION=$(jq -r '.version' dist/built-info.json)
+            COMMIT=$(jq -r '.commit' dist/built-info.json)
+            BUILT_AT=$(jq -r '."built-at"' dist/built-info.json)
+
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+
+            echo ""
+            echo "CargoEx Service Information:"
+            echo "  Version: $VERSION"
+            echo "  Commit: $COMMIT"
+            echo "  Built at: $BUILT_AT"
+            echo ""
+          else
+            echo "⚠️  No built-info.json found, continuing without version info"
+            echo "version=unknown" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Google Cloud authentication
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.CRD }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.PJ_ID }}
+
+      - name: Verify files to upload
+        run: |
+          echo "=========================================="
+          echo "FILES TO UPLOAD"
+          echo "=========================================="
+          echo ""
+
+          if [ -f dist/cargoex-service.exe ]; then
+            echo "✅ cargoex-service.exe found"
+            ls -lh dist/cargoex-service.exe
+          else
+            echo "❌ cargoex-service.exe not found!"
+            exit 1
+          fi
+
+          echo ""
+          echo "Additional files in dist/:"
+          ls -lh dist/
+          echo ""
+
+      - name: Upload executables to Google Cloud Storage
+        run: |
+          echo "=========================================="
+          echo "UPLOADING TO GOOGLE CLOUD STORAGE"
+          echo "=========================================="
+          echo "Target: gs://cargoex-almacenamiento/Utilitarios/Impresion/"
+          echo ""
+
+          # Upload all .exe files from dist/
+          gsutil cp dist/*.exe gs://cargoex-almacenamiento/Utilitarios/Impresion/
+
+          echo ""
+          echo "✅ Upload completed successfully!"
+
+      - name: Upload metadata (optional)
+        if: success()
+        run: |
+          echo "Uploading built-info.json metadata..."
+
+          if [ -f dist/built-info.json ]; then
+            gsutil cp dist/built-info.json gs://cargoex-almacenamiento/Utilitarios/Impresion/cargoex-service-info.json
+            echo "✅ Metadata uploaded"
+          else
+            echo "ℹ️  No metadata file to upload"
+          fi
+
+      - name: Verify upload
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "VERIFYING UPLOAD"
+          echo "=========================================="
+          echo ""
+          echo "Files in GCS bucket:"
+          gsutil ls -lh gs://cargoex-almacenamiento/Utilitarios/Impresion/*.exe
+          echo ""
+
+      - name: Final Summary
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "UPLOAD COMPLETED SUCCESSFULLY"
+          echo "=========================================="
+          echo "✅ CargoEx Service uploaded to Google Cloud Storage"
+          echo "✅ Location: gs://cargoex-almacenamiento/Utilitarios/Impresion/"
+          echo "✅ Version: ${{ steps.version.outputs.version }}"
+          echo ""
+          echo "Files uploaded:"
+          echo "  - cargoex-service.exe"
+          if [ -f dist/built-info.json ]; then
+            echo "  - cargoex-service-info.json (metadata)"
+          fi
+          echo ""
