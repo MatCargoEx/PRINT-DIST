@@ -103,6 +103,9 @@ jobs:
           echo "Files downloaded successfully:"
           ls -lh build/
           echo ""
+          echo "File sizes:"
+          du -h build/*
+          echo ""
           echo "Build information:"
           cat build/built-info.json | jq .
 
@@ -116,12 +119,31 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Add all files in build/
-          git add build/
+          # Show current status before adding
+          echo "Git status before add:"
+          git status build/
+          echo ""
+          echo "Files in build/ directory:"
+          ls -la build/
+          echo ""
+
+          # Force add all files in build/, even if in .gitignore
+          git add -f build/ -v
+
+          # Show what was staged
+          echo ""
+          echo "Staged changes:"
+          git diff --staged --stat
+          echo ""
+          git diff --staged --name-status
+          echo ""
 
           # Check if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit - build/ already up to date"
+            echo ""
+            echo "Checking if build/ exists in repo:"
+            git ls-tree -r HEAD --name-only | grep "^build/" || echo "build/ not found in repo"
             exit 0
           fi
 
