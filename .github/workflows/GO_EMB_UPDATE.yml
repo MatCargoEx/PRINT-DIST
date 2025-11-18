@@ -1,0 +1,172 @@
+name: Update Go Service Repository with LabelDesigner
+run-name: Update Go repo build/ folder by ${{ github.actor }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      # Trigger when LabelDesigner is updated in emb/
+      - 'emb/**'
+
+env:
+  REPO_OWNER: MatCargoEx
+  GO_SERVICE_REPO: PRINT-SERIVCE-GO
+
+jobs:
+  update-go-repo:
+    name: Update Go Service Repo build/ with emb/ contents
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract LabelDesigner version information
+        id: version
+        run: |
+          echo "=========================================="
+          echo "EXTRACTING LABELDESIGNER VERSION"
+          echo "=========================================="
+
+          # Download built-info.json from emb/
+          curl -s https://raw.githubusercontent.com/${{ env.REPO_OWNER }}/PRINT-DIST/main/emb/built-info.json > emb-info.json
+
+          if [ ! -f emb-info.json ]; then
+            echo "❌ Failed to download emb/built-info.json"
+            exit 1
+          fi
+
+          # Extract version and commit
+          VERSION=$(jq -r '.version' emb-info.json)
+          COMMIT=$(jq -r '.commit' emb-info.json)
+          BUILT_AT=$(jq -r '."built-at"' emb-info.json)
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "LabelDesigner Information:"
+          echo "  Version: $VERSION"
+          echo "  Commit: $COMMIT"
+          echo "  Built at: $BUILT_AT"
+          echo ""
+
+      - name: Checkout Go Service Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.REPO_OWNER }}/${{ env.GO_SERVICE_REPO }}
+          token: ${{ secrets.PAT_TOKEN }}
+          ref: main
+
+      - name: Create build directory
+        run: |
+          # Remove existing build directory to ensure clean state
+          rm -rf build
+          mkdir -p build
+          echo "✅ build/ directory ready"
+
+      - name: Download all files from PRINT-DIST/emb/
+        run: |
+          echo "=========================================="
+          echo "DOWNLOADING EMB/ CONTENTS"
+          echo "=========================================="
+          echo "Fetching all files from PRINT-DIST/emb/..."
+          echo ""
+
+          # Download LabelDesigner.exe
+          echo "Downloading LabelDesigner.exe..."
+          curl -L -o build/LabelDesigner.exe \
+            -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+            https://github.com/${{ env.REPO_OWNER }}/PRINT-DIST/raw/main/emb/LabelDesigner.exe
+
+          # Download LabelDesigner.exe.config
+          echo "Downloading LabelDesigner.exe.config..."
+          curl -L -o build/LabelDesigner.exe.config \
+            -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+            https://raw.githubusercontent.com/${{ env.REPO_OWNER }}/PRINT-DIST/main/emb/LabelDesigner.exe.config
+
+          # Download built-info.json
+          echo "Downloading built-info.json..."
+          curl -L -o build/built-info.json \
+            -H "Authorization: Bearer ${{ secrets.PAT_TOKEN }}" \
+            https://raw.githubusercontent.com/${{ env.REPO_OWNER }}/PRINT-DIST/main/emb/built-info.json
+
+          # Verify critical files were downloaded
+          if [ ! -f build/LabelDesigner.exe ]; then
+            echo "❌ Failed to download LabelDesigner.exe"
+            exit 1
+          fi
+
+          if [ ! -f build/built-info.json ]; then
+            echo "❌ Failed to download built-info.json"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Files downloaded successfully:"
+          ls -lh build/
+          echo ""
+          echo "Build information:"
+          cat build/built-info.json | jq .
+
+      - name: Commit and push to Go Service Repository
+        run: |
+          echo "=========================================="
+          echo "COMMITTING TO GO SERVICE REPO"
+          echo "=========================================="
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Add all files in build/
+          git add build/
+
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit - build/ already up to date"
+            exit 0
+          fi
+
+          # Get version from built-info
+          VERSION=$(jq -r '.version' build/built-info.json)
+          COMMIT=$(jq -r '.commit' build/built-info.json)
+
+          # Create commit message
+          git commit -m "Update build/ with LabelDesigner - Version $VERSION
+
+Automatic update from PRINT-DIST/emb/ distribution.
+
+- LabelDesigner Version: $VERSION
+- LabelDesigner Commit: $COMMIT
+- Source: PRINT-DIST/emb/
+- Files: LabelDesigner.exe, LabelDesigner.exe.config, built-info.json
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+          # Push to main
+          echo ""
+          echo "Pushing to ${{ env.GO_SERVICE_REPO }}/main..."
+          git push origin main
+
+          echo ""
+          echo "✅ Successfully updated Go Service repository!"
+          echo "   Version: $VERSION"
+          echo "   Location: build/"
+
+      - name: Final Summary
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "UPDATE COMPLETED SUCCESSFULLY"
+          echo "=========================================="
+          echo "✅ LabelDesigner files updated in ${{ env.GO_SERVICE_REPO }}"
+          echo "✅ Location: build/"
+          echo "✅ Version: ${{ steps.version.outputs.version }}"
+          echo ""
+          echo "Files copied from emb/:"
+          echo "  - LabelDesigner.exe"
+          echo "  - LabelDesigner.exe.config"
+          echo "  - built-info.json"
+          echo ""
+          echo "View at: https://github.com/${{ env.REPO_OWNER }}/${{ env.GO_SERVICE_REPO }}/tree/main/build"
+          echo ""
