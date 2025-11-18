@@ -131,3 +131,6 @@ jobs:
 
           # Create commit
           git commit -m "Update build/ with LabelDesigner $VERSION (commit: $COMMIT)"
+
+          # Push to remote
+          git push
