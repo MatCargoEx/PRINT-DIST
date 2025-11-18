@@ -11,7 +11,7 @@ on:
 
 env:
   REPO_OWNER: MatCargoEx
-  GO_SERVICE_REPO: PRINT-SERIVCE-GO
+  GO_SERVICE_REPO: PRINT-SERVICE-GO
 
 jobs:
   update-go-repo:
