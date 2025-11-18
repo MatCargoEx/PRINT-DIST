@@ -29,7 +29,7 @@ jobs:
           curl -s https://raw.githubusercontent.com/${{ env.REPO_OWNER }}/PRINT-DIST/main/emb/built-info.json > emb-info.json
 
           if [ ! -f emb-info.json ]; then
-            echo "❌ Failed to download emb/built-info.json"
+            echo "Failed to download emb/built-info.json"
             exit 1
           fi
 
@@ -60,7 +60,7 @@ jobs:
           # Remove existing build directory to ensure clean state
           rm -rf build
           mkdir -p build
-          echo "✅ build/ directory ready"
+          echo "build/ directory ready"
 
       - name: Download all files from PRINT-DIST/emb/
         run: |
@@ -90,17 +90,17 @@ jobs:
 
           # Verify critical files were downloaded
           if [ ! -f build/LabelDesigner.exe ]; then
-            echo "❌ Failed to download LabelDesigner.exe"
+            echo "Failed to download LabelDesigner.exe"
             exit 1
           fi
 
           if [ ! -f build/built-info.json ]; then
-            echo "❌ Failed to download built-info.json"
+            echo "Failed to download built-info.json"
             exit 1
           fi
 
           echo ""
-          echo "✅ Files downloaded successfully:"
+          echo "Files downloaded successfully:"
           ls -lh build/
           echo ""
           echo "Build information:"
@@ -121,7 +121,7 @@ jobs:
 
           # Check if there are changes
           if git diff --staged --quiet; then
-            echo "ℹ️  No changes to commit - build/ already up to date"
+            echo "No changes to commit - build/ already up to date"
             exit 0
           fi
 
@@ -130,7 +130,7 @@ jobs:
           COMMIT=$(jq -r '.commit' build/built-info.json)
 
           # Create commit message using HEREDOC
-          git commit -m "$(cat <<EOF
+          git commit -m "$(cat <<'EOF'
 Update build/ with LabelDesigner - Version $VERSION
 
 Automatic update from PRINT-DIST/emb/ distribution.
