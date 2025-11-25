@@ -1,9 +1,9 @@
 ﻿{
-    "commit":  "02e959547225dc327229b46f2214a6602635b414",
-    "version":  "1.0.39",
+    "commit":  "51d5aedf9fef75cc66f07e5f62b18001ee1f259c",
+    "version":  "1.0.40",
     "repository":  "MatCargoEx/PRINT-SERVICE-GO",
-    "file-size-bytes":  13004456,
+    "file-size-bytes":  13004448,
     "signed":  true,
     "filename":  "cargoex-service.exe",
-    "built-at":  "2025-11-24T20:50:26Z"
+    "built-at":  "2025-11-24T21:03:34Z"
 }
