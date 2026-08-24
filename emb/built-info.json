@@ -1,9 +1,9 @@
 ﻿{
-    "commit":  "68718a423ee66fc016c19c6bc9e948dd7fecf7fe",
-    "version":  "1.0.39",
+    "commit":  "5f72e1c2d22436003161c650bacb665cd99bcbf6",
+    "version":  "1.0.40",
     "repository":  "MatCargoEx/PRINT-DRIVER-CSHARP",
-    "file-size-bytes":  1454752,
+    "file-size-bytes":  1453224,
     "signed":  true,
     "filename":  "LabelDesigner.exe",
-    "built-at":  "2026-07-30T11:42:59Z"
+    "built-at":  "2026-08-24T08:44:38Z"
 }
